@@ -1,0 +1,82 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Parameters:
+  ParamProjectID:
+    Type: String
+  ParamProjectEnviron:
+    Type: String
+  ParamProjectOrgID:
+    Type: String
+  ParamProjectName:
+    Type: String
+
+Globals:
+    Function:
+      Runtime: go1.x
+      Timeout: 120
+      Environment:
+        Variables:
+          PROJECT_ID: !Ref ParamProjectID
+          ENVIRON: !Ref ParamProjectEnviron
+          ORG_ID: !Ref ParamProjectOrgID
+          PROJECT_NAME: !Ref ParamProjectName
+          LOG_BUCKET_ID: !Ref ParamLogBucketId
+
+Resources:
+  ManagedPolicy1:
+    Type: AWS::IAM::ManagedPolicy
+    Properties:
+      ManagedPolicyName: !Sub '${ParamProjectID}-policy'
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          -
+            Sid: AllowCloudwatchAccess
+            Effect: Allow
+            Action:
+              - logs:*
+            Resource: "*"
+          -
+            Sid: AllowLambdaAccess
+            Effect: Allow
+            Action:
+              - lambda:*
+            Resource: "*"
+          -
+            Sid: AllowS3Access
+            Effect: Allow
+            Action:
+              - s3:*
+            Resource: "*"
+
+  Role1:
+    Type: 'AWS::IAM::Role'
+    Properties:
+      RoleName: !Sub '${ParamProjectID}-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - 'sts:AssumeRole'
+      Path: /
+      ManagedPolicyArns:
+        - !Ref ManagedPolicy1            
+
+  Func2:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub '${ParamProjectID}-cws3'
+      Role: !GetAtt Role1.Arn
+      Handler: src/cloudwatch-to-s3-logs/bin/cloudwatch-to-s3-logs
+      Runtime: go1.x
+      Tracing: Active
+      Events:
+        CloudWatchEvent:
+          Type: Schedule
+          Properties:
+            Schedule: cron(30 18 * * ? *)
