@@ -6,7 +6,6 @@ AWS_BUCKET_NAME ?= $(ORG_ID)-$(ENVIRON)-sls-artifacts-$(AWS_REGION)
 AWS_REGION ?= $(AWS_DEFAULT_REGION)
 LOG_BUCKET_ID ?= $(ORG_ID)-$(ENVIRON)-exported-cloudwatch-logs-$(AWS_REGION)
 
-
 export SAM_CLI_TELEMETRY=0
 export GO111MODULE=on
 

@@ -31,7 +31,11 @@ func s3ExportTaskStart(cloudwatchLogGroupNames []string, getDate getDate) (taskI
 			LogGroupName:      &cloudwatchLogGroupNames[k],
 		}
 		fmt.Println("Exporting log group =>", cloudwatchLogGroupNames[k])
-		createExportTaskOutput, _ := svcCloudwatchLogs.CreateExportTask(createExportTaskInput)
+		createExportTaskOutput, err := svcCloudwatchLogs.CreateExportTask(createExportTaskInput)
+		if err != nil {
+			fmt.Println("Error in exporting => ", err)
+			continue
+		}
 		taskID, Status, err := waitForExportTaskCompletion(*createExportTaskOutput.TaskId)
 		fmt.Println("Executed Task ID => ", taskID, ", Status => ", Status, ", Error => ", err)
 		taskIDList = append(taskIDList, *createExportTaskOutput.TaskId)
@@ -72,7 +76,7 @@ func waitForExportTaskCompletion(taskID string) (string, string, error) {
 		TaskId: &taskID,
 	}
 
-	time.Sleep(time.Second * 1)
+	time.Sleep(time.Second * 10)
 	describeExportTasksOutput, err := svcCloudwatchLogs.DescribeExportTasks(describeExportTasksInput)
 	task := describeExportTasksOutput.ExportTasks[0]
 	fmt.Println("Current Task ID => ", *task.TaskId, ", Status => ", *task.Status.Code)
@@ -84,7 +88,7 @@ func waitForExportTaskCompletion(taskID string) (string, string, error) {
 		waitErrorCount++
 		fmt.Println("Current Status => ", *task.Status.Code)
 		fmt.Println("Waiting for task to be completed....")
-		time.Sleep(time.Second * 5)
+		time.Sleep(time.Second * 15)
 		describeExportTasksOutput, err = svcCloudwatchLogs.DescribeExportTasks(describeExportTasksInput)
 		task = describeExportTasksOutput.ExportTasks[0]
 		if waitErrorCount > 3 {

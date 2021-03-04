@@ -2,7 +2,9 @@ package main
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"os"
 
 	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/aws/aws-sdk-go/aws/session"
@@ -11,8 +13,8 @@ import (
 
 var (
 	limitList            int64    = 1
-	logGroupNamePrefixes []string = []string{"/aws/transfer", "/aws/vendedlogs"}
-	logS3BucketID        string   = "hpy-uat-exported-cloudwatch-logs-ap-south-1"
+	logGroupNamePrefixes []string = []string{"/s/transfer", "/aws/vendedlogs"}
+	logS3BucketID        string   = os.Getenv("LOG_BUCKET_ID")
 )
 
 func initAwsCloudwatchLogsSession() (svcCloudwatchLogs *cloudwatchlogs.CloudWatchLogs) {
@@ -26,6 +28,7 @@ func fetchCloudwatchLogGroups(logGroupNamePrefixes []string) (cloudwatchLogGroup
 	for k, v := range logGroupNamePrefixes {
 		input := &cloudwatchlogs.DescribeLogGroupsInput{Limit: &limitList, LogGroupNamePrefix: &v}
 		describeLogGroups, err := svcCloudwatchLogs.DescribeLogGroups(input)
+
 		for describeLogGroups.NextToken != nil {
 			newInput := &cloudwatchlogs.DescribeLogGroupsInput{Limit: &limitList, LogGroupNamePrefix: &logGroupNamePrefixes[k], NextToken: describeLogGroups.NextToken}
 			describeLogGroups, err = svcCloudwatchLogs.DescribeLogGroups(newInput)
@@ -35,8 +38,16 @@ func fetchCloudwatchLogGroups(logGroupNamePrefixes []string) (cloudwatchLogGroup
 				fmt.Println("Error in - ", describeLogGroups.LogGroups, "-", err)
 			}
 		}
-		cloudwatchLogGroupNames = append(cloudwatchLogGroupNames, *describeLogGroups.LogGroups[0].LogGroupName)
+
+		if len(describeLogGroups.LogGroups) < 1 {
+			fmt.Println("No match for log group prefix - ", v)
+		}
+
+		if len(describeLogGroups.LogGroups) > 0 {
+			cloudwatchLogGroupNames = append(cloudwatchLogGroupNames, *describeLogGroups.LogGroups[0].LogGroupName)
+		}
 	}
+
 	return cloudwatchLogGroupNames, err
 }
 
@@ -48,6 +59,7 @@ func mainHandler(ctx context.Context) (output string, err error) {
 	logGroupsToExport, err := fetchCloudwatchLogGroups(logGroupNamePrefixes)
 	if len(logGroupsToExport) < 1 {
 		fmt.Println("No log groups matched for export", logGroupsToExport)
+		return "No Match", errors.New("No Match")
 	}
 	fmt.Println("Log groups to export => ", logGroupsToExport)
 
