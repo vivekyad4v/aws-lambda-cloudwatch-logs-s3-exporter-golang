@@ -67,13 +67,14 @@ Resources:
       ManagedPolicyArns:
         - !Ref ManagedPolicy1            
 
-  Func2:
+  Func1:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub '${ParamProjectID}-cws3'
       Role: !GetAtt Role1.Arn
       Handler: src/cloudwatch-to-s3-logs/bin/cloudwatch-to-s3-logs
       Runtime: go1.x
+      Timeout: 900
       Tracing: Active
       Events:
         CloudWatchEvent:

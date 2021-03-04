@@ -10,11 +10,6 @@ configure:
 			--bucket $(AWS_BUCKET_NAME) \
 			--region $(AWS_REGION) \
 			--create-bucket-configuration LocationConstraint=$(AWS_REGION)
-	@ aws s3api head-bucket --bucket $(LOG_BUCKET_ID) && echo "Artifacts S3 bucket already exists - $(LOG_BUCKET_ID)" ||\
-	     aws s3api create-bucket \
-			--bucket $(LOG_BUCKET_ID) \
-			--region $(AWS_REGION) \
-			--create-bucket-configuration LocationConstraint=$(AWS_REGION)
 
 invoke-local:
 	@ sam local invoke \

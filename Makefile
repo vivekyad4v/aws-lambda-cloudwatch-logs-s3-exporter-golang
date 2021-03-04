@@ -24,4 +24,4 @@ endif
 include .make
 
 build:
-	@ cd ./src/$(MODULE1) ; go mod init $(MODULE1) ; go mod download ; GOOS=linux go build -o ./bin/$(MODULE1)
+	@ cd ./src/$(MODULE1) ; go get ./ ; go mod init $(MODULE1) ; go mod download ; GOOS=linux go build -o ./bin/$(MODULE1)
