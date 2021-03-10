@@ -4,97 +4,50 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"os"
 
+	"github.com/Happay-DevSecOps/go-utils/cdate"
+	"github.com/Happay-DevSecOps/go-utils/cerrors"
+	"github.com/Happay-DevSecOps/go-utils/couts"
+	"github.com/Happay-DevSecOps/go-utils/logger"
 	"github.com/aws/aws-lambda-go/lambda"
-	"github.com/aws/aws-sdk-go/aws/session"
-	"github.com/aws/aws-sdk-go/service/cloudwatchlogs"
 )
 
 var (
 	limitList            int64    = 1
-	logGroupNamePrefixes []string = []string{"/s/transfer", "/aws/vendedlogs"}
-	logS3BucketID        string   = os.Getenv("LOG_BUCKET_ID")
+	logGroupNamePrefixes []string = []string{"/aws/transfer", "/aws/vendedlogs"}
+	// logGroupNamePrefixes       []string = []string{"/s/transfer", "/alogs"}
+	logS3BucketID              string = os.Getenv("LOG_BUCKET_ID")
+	dateDetail                 cdate.GetDate
+	logInfo, logWarn, logError *log.Logger
+	cerrorgeneral              *cerrors.GeneralError
+	coutgeneral                *couts.GeneralOutput
 )
 
-func initAwsCloudwatchLogsSession() (svcCloudwatchLogs *cloudwatchlogs.CloudWatchLogs) {
-	mySession := session.Must(session.NewSession())
-	return cloudwatchlogs.New(mySession)
+func init() {
+	logInfo, logWarn, logError = logger.InitLogger()
 }
 
-func fetchCloudwatchLogGroups(logGroupNamePrefixes []string) (cloudwatchLogGroupNames []string, err error) {
-	svcCloudwatchLogs := initAwsCloudwatchLogsSession()
+func mainHandler(ctx context.Context) (new interface{}, err error) {
 
-	for k, v := range logGroupNamePrefixes {
-		input := &cloudwatchlogs.DescribeLogGroupsInput{Limit: &limitList, LogGroupNamePrefix: &v}
-		describeLogGroups, err := svcCloudwatchLogs.DescribeLogGroups(input)
+	fmt.Println("")
+	dateDetail = dateDetail.Ymdyesterday()
 
-		for describeLogGroups.NextToken != nil {
-			newInput := &cloudwatchlogs.DescribeLogGroupsInput{Limit: &limitList, LogGroupNamePrefix: &logGroupNamePrefixes[k], NextToken: describeLogGroups.NextToken}
-			describeLogGroups, err = svcCloudwatchLogs.DescribeLogGroups(newInput)
-			cloudwatchLogGroupNames = append(cloudwatchLogGroupNames, *describeLogGroups.LogGroups[0].LogGroupName)
-
-			if err != nil {
-				fmt.Println("Error in - ", describeLogGroups.LogGroups, "-", err)
-			}
-		}
-
-		if len(describeLogGroups.LogGroups) < 1 {
-			fmt.Println("No match for log group prefix - ", v)
-		}
-
-		if len(describeLogGroups.LogGroups) > 0 {
-			cloudwatchLogGroupNames = append(cloudwatchLogGroupNames, *describeLogGroups.LogGroups[0].LogGroupName)
-		}
-	}
-
-	return cloudwatchLogGroupNames, err
-}
-
-func mainHandler(ctx context.Context) (output string, err error) {
-
-	var dateDetail getDate
-	dateDetail = dateDetail.ymdyesterday()
-
-	logGroupsToExport, err := fetchCloudwatchLogGroups(logGroupNamePrefixes)
+	logGroupsToExport := fetchCloudwatchLogGroups(logGroupNamePrefixes)
 	if len(logGroupsToExport) < 1 {
-		fmt.Println("No log groups matched for export", logGroupsToExport)
-		return "No Match", errors.New("No Match")
+		cerrorg := cerrors.GeneralError{Code: "501", Message: "No log groups matched for export", Err: errors.New("NoMatch")}
+		logError.Println(&cerrorg)
+		return cerrorgeneral, errors.New("NoMatch")
 	}
-	fmt.Println("Log groups to export => ", logGroupsToExport)
 
-	taskIDList := s3ExportTaskStart(logGroupsToExport, dateDetail)
+	logInfo.Println("Log groups to export => ", logGroupsToExport)
+	fmt.Println("")
 
-	fmt.Println(taskIDList)
-
-	return "Sucess", err
+	coutgeneral = s3ExportTaskStart(logGroupsToExport, dateDetail)
+	return coutgeneral, nil
 }
 
 func main() {
 	lambda.Start(mainHandler)
 }
-
-// snippets
-// fmt.Println("Checking for yesterday's export status.......")
-// checkForFailedTasks, err := checkForFailedTasks()
-// if checkForFailedTasks == "FAILED" || err != nil {
-// 	fmt.Println("Tasks FAILED yesterday, status => ", checkForFailedTasks)
-// } else {
-// 	fmt.Println("Tasks SUCCEEDED yesterday")
-// }
-
-// func checkForFailedTasks() (status string, err error) {
-// 	svcCloudwatchLogs := initAwsCloudwatchLogsSession()
-
-// 	exportTaskStatusCodeFailed := cloudwatchlogs.ExportTaskStatusCodeFailed
-// 	describeExportTasksInputFailed := &cloudwatchlogs.DescribeExportTasksInput{StatusCode: &exportTaskStatusCodeFailed}
-
-// 	exportTasksFailed, err := svcCloudwatchLogs.DescribeExportTasks(describeExportTasksInputFailed)
-
-// 	if len(exportTasksFailed.ExportTasks) != 0 {
-// 		fmt.Println("There are FAILED export tasks.", exportTasksFailed)
-// 		return "FAILED", err
-// 	}
-
-// 	return "ALL TASKS SUCCEEDED", err
-// }
